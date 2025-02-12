@@ -31,9 +31,9 @@ export async function getSingleNotificationGroup(
   }
 }
 
-export async function getAllNotificationGroupsByUserId(userId: string) {
+export async function getAllNotificationGroupsByUserId(userId: number) {
   try {
-    const notification: INotificationDocument[] =
+    const notifications: INotificationDocument[] =
       (await NotificationModel.findOne({
         raw: true,
         where: {
@@ -41,6 +41,7 @@ export async function getAllNotificationGroupsByUserId(userId: string) {
         },
         order: [["createdAt", "DESC"]],
       })) as unknown as INotificationDocument[];
+    return notifications;
   } catch (err) {
     throw new Error(err);
   }

@@ -14,25 +14,15 @@ import { expressMiddleware } from "@apollo/server/express4";
 import cookieSession from "cookie-session";
 
 import logger from "./logger";
+import { mergedGQLSchema } from "@src/graphql/schema";
+import { GraphQLSchema } from "graphql";
+import { BaseContext } from "@apollo/server";
+import { resolvers } from "@src/graphql/resolvers";
 
-const typeDefs = `#graphql
-  type User{
-    userName: String!
-  }
-
-  type Query{
-    getUser: User!
-  }
-
-`;
-
-const resolvers = {
-  Query: {
-    getUser: () => {
-      return { userName: "Tanvir Rifat" };
-    },
-  },
-};
+export interface AppContext {
+  req: Request;
+  res: Response;
+}
 
 export default class MonitorServer {
   private app: Express;
@@ -44,8 +34,11 @@ export default class MonitorServer {
 
     this.app = app;
     this.httpServer = new http.Server(this.app);
-    const schema = makeExecutableSchema({ typeDefs, resolvers });
-    this.server = new ApolloServer({
+    const schema: GraphQLSchema = makeExecutableSchema({
+      typeDefs: mergedGQLSchema,
+      resolvers,
+    });
+    this.server = new ApolloServer<AppContext | BaseContext>({
       schema,
       // enable the introspection(graphql dev mode) only in development mode
       introspection: NODE_ENV === "development",
@@ -82,7 +75,7 @@ export default class MonitorServer {
       cookieSession({
         name: "session",
         keys: [SECRET_KEY_ONE, SECRET_KEY_TWO],
-        maxAge: 24 * 7 * 3600000,
+        maxAge: 24 * 7 * 3600000, // 7 days validity
         secure: NODE_ENV === "production",
         ...(NODE_ENV === "production" ? { sameSite: "none" } : {}),
       })
