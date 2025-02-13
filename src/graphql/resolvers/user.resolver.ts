@@ -3,7 +3,6 @@ import {
   IUserDocument,
   IUserResponse,
 } from "@src/interfaces/user.interface";
-import { AppContext } from "@src/server/server";
 import {
   createNewUser,
   getUserByProp,
@@ -23,6 +22,7 @@ import { JWT_TOKEN } from "@src/server/config";
 import { authenticateGraphQLRoute, isEmail } from "@src/utils/utils";
 import { UserModel } from "@src/models/user.model";
 import logger from "@src/server/logger";
+import { AppContext } from "@src/interfaces/monitor.interface";
 
 export const UserResolver = {
   Query: {
