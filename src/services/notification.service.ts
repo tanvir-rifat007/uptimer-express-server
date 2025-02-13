@@ -34,7 +34,7 @@ export async function getSingleNotificationGroup(
 export async function getAllNotificationGroupsByUserId(userId: number) {
   try {
     const notifications: INotificationDocument[] =
-      (await NotificationModel.findOne({
+      (await NotificationModel.findAll({
         raw: true,
         where: {
           userId,
