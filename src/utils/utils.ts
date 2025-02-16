@@ -3,6 +3,10 @@ import { Request } from "express";
 import { GraphQLError } from "graphql";
 import { verify } from "jsonwebtoken";
 
+// get a user's current time zone:
+export const appTimeZone: string =
+  Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export const isEmail = (email: string): boolean => {
   const regexExp =
     /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/gi;

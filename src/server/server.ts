@@ -12,6 +12,10 @@ import cors from "cors";
 import express from "express";
 import { expressMiddleware } from "@apollo/server/express4";
 import cookieSession from "cookie-session";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import customFormat from "dayjs/plugin/customParseFormat";
 
 import logger from "./logger";
 import { mergedGQLSchema } from "@src/graphql/schema";
@@ -20,7 +24,9 @@ import { BaseContext } from "@apollo/server";
 import { resolvers } from "@src/graphql/resolvers";
 import { AppContext } from "@src/interfaces/monitor.interface";
 
-
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.extend(customFormat);
 
 export default class MonitorServer {
   private app: Express;
