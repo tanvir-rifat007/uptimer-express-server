@@ -5,8 +5,9 @@ import { connectToDB } from "./server/db";
 const init = async () => {
   const app: Express = express();
   const server = new MonitorServer(app);
-  await connectToDB();
-  server.start();
+  connectToDB().then(() => {
+    server.start();
+  });
 };
 
 init();

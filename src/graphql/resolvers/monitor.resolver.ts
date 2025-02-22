@@ -7,14 +7,27 @@ import logger from "@src/server/logger";
 import {
   createMonitor,
   deleteSingleMonitor,
+  getHeartbeats,
   getMonitorById,
+  getUserActiveMonitors,
   getUserMonitors,
+  startCreatedMonitors,
   toggleMonitor,
   updateSingleMonitor,
 } from "@src/services/monitor.service";
 import { getSingleNotificationGroup } from "@src/services/notification.service";
 import { startSingleJob, stopSingleBackgroundJob } from "@src/utils/jobs";
-import { appTimeZone, authenticateGraphQLRoute } from "@src/utils/utils";
+import {
+  appTimeZone,
+  authenticateGraphQLRoute,
+  resumeMonitors,
+  uptimePercentage,
+} from "@src/utils/utils";
+import { some, toLower } from "lodash";
+import { PubSub } from "graphql-subscriptions";
+import { IHeartbeat } from "@src/interfaces/heartbeat.interface";
+
+export const pubSub: PubSub = new PubSub();
 
 export const monitorResolver = {
   Query: {
@@ -43,6 +56,48 @@ export const monitorResolver = {
         monitors,
       };
     },
+
+    async autoRefresh(
+      _parent: undefined,
+      { userId, refresh }: { userId: string; refresh: boolean },
+      contextValue: AppContext
+    ) {
+      const { req } = contextValue;
+      authenticateGraphQLRoute(req);
+      if (refresh) {
+        req.session = {
+          ...req.session,
+          enableAutomaticRefresh: true,
+        };
+
+        startSingleJob(
+          `${toLower(req.currentUser?.username!)}`,
+          appTimeZone,
+          10,
+          async () => {
+            const monitors: IMonitorDocument[] =
+              await getUserActiveMonitors(+userId);
+
+            pubSub.publish("MONITORS_UPDATED", {
+              monitorsUpdated: {
+                userId: +userId,
+                monitors,
+              },
+            });
+          }
+        );
+      } else {
+        req.session = {
+          ...req.session,
+          enableAutomaticRefresh: false,
+        };
+        stopSingleBackgroundJob(`${toLower(req.currentUser?.username!)}`);
+      }
+
+      return {
+        refresh,
+      };
+    },
   },
 
   Mutation: {
@@ -57,10 +112,7 @@ export const monitorResolver = {
       const monitor: IMonitorDocument = await createMonitor(body);
 
       if (monitor?.active && body?.active) {
-        logger.info(`Monitor ${monitor.name} is active`);
-        startSingleJob(monitor.name, appTimeZone, 10, () =>
-          logger.info("This is called every 10 seconds")
-        );
+        startCreatedMonitors(monitor, toLower(body.name), body.type);
       }
 
       return {
@@ -79,15 +131,24 @@ export const monitorResolver = {
       const { monitorId, userId, name, active } = args.monitor!;
 
       const monitor = await toggleMonitor(monitorId!, userId, active);
+      const hasActiveMonitors: boolean = some(
+        monitor,
+        (m: IMonitorDocument) => m.active
+      );
+
+      if (!hasActiveMonitors) {
+        req.session = {
+          ...req.session,
+          enableAutomaticRefresh: false,
+        };
+        stopSingleBackgroundJob(`${toLower(req.currentUser?.username!)}`);
+      }
 
       if (!active) {
         logger.info(`Monitor ${name} is inactive`);
         stopSingleBackgroundJob(name, monitorId);
       } else {
-        logger.info(`Monitor ${name} is active`);
-        startSingleJob(name, appTimeZone, 10, () =>
-          logger.info("This is called every 10 seconds")
-        );
+        resumeMonitors(monitorId!);
       }
 
       return {
@@ -143,6 +204,25 @@ export const monitorResolver = {
     },
     notifications: (monitor: IMonitorDocument) => {
       return getSingleNotificationGroup(monitor.notificationId!);
+    },
+    heartbeats: async (monitor: IMonitorDocument) => {
+      const heartbeats = await getHeartbeats(monitor.type, monitor.id!, 24);
+
+      return heartbeats.slice(0, 16);
+    },
+    uptime: async (monitor: IMonitorDocument): Promise<number> => {
+      const heartbeats: IHeartbeat[] = await getHeartbeats(
+        monitor.type,
+        monitor.id!,
+        24
+      );
+      return uptimePercentage(heartbeats);
+    },
+  },
+
+  Subscription: {
+    monitorsUpdated: {
+      subscribe: () => pubSub.asyncIterator(["MONITORS_UPDATED"]),
     },
   },
 };

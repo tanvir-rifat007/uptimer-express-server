@@ -23,6 +23,10 @@ import { GraphQLSchema } from "graphql";
 import { BaseContext } from "@apollo/server";
 import { resolvers } from "@src/graphql/resolvers";
 import { AppContext } from "@src/interfaces/monitor.interface";
+import { enableAutoRefreshJob, startMonitors } from "@src/utils/utils";
+
+import { Server, WebSocketServer } from "ws";
+import { useServer } from "graphql-ws/lib/use/ws";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -32,16 +36,30 @@ export default class MonitorServer {
   private app: Express;
   private httpServer: http.Server;
   private server: ApolloServer;
+  private wsServer: Server;
 
   constructor(app: Express) {
     // this.app means the Express app that is passed to the constructor
 
     this.app = app;
     this.httpServer = new http.Server(this.app);
+    this.wsServer = new WebSocketServer({
+      server: this.httpServer,
+      path: "/graphql",
+    });
     const schema: GraphQLSchema = makeExecutableSchema({
       typeDefs: mergedGQLSchema,
       resolvers,
     });
+
+    // websocket server cleanup
+    const wsServerCleanup = useServer(
+      {
+        schema,
+      },
+      this.wsServer
+    );
+
     this.server = new ApolloServer<AppContext | BaseContext>({
       schema,
       // enable the introspection(graphql dev mode) only in development mode
@@ -49,6 +67,17 @@ export default class MonitorServer {
 
       plugins: [
         ApolloServerPluginDrainHttpServer({ httpServer: this.httpServer }),
+
+        // cleanup the websocket server when the server is stopped
+        {
+          async serverWillStart() {
+            return {
+              async drainServer() {
+                await wsServerCleanup.dispose();
+              },
+            };
+          },
+        },
         NODE_ENV === "production"
           ? ApolloServerPluginLandingPageDisabled()
           : ApolloServerPluginLandingPageLocalDefault({ embed: true }),
@@ -61,6 +90,7 @@ export default class MonitorServer {
     // so that why we need to start the server first
     await this.server.start();
     this.standardMiddleware(this.app);
+    this.webSocketConnection();
     await this.startServer();
   }
 
@@ -116,6 +146,17 @@ export default class MonitorServer {
     });
   }
 
+  private webSocketConnection(): void {
+    this.wsServer.on(
+      "connection",
+      (_ws: WebSocket, req: http.IncomingMessage) => {
+        if (req.headers && req.headers.cookie) {
+          enableAutoRefreshJob(req.headers.cookie!);
+        }
+      }
+    );
+  }
+
   private async startServer(): Promise<void> {
     try {
       // make the port string to a number
@@ -124,6 +165,7 @@ export default class MonitorServer {
 
       this.httpServer.listen(PORT, () => {
         logger.info(`Server is running on port ${PORT}`);
+        startMonitors();
       });
     } catch (err) {
       logger.error(err);

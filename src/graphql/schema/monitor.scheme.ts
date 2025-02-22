@@ -113,5 +113,9 @@ export const monitorSchema = buildSchema(`#graphql
     deleteMonitor(monitorId: ID!, userId: ID!, type: String!): DeleteMonitorResponse
   }
 
+  type Subscription{
+    monitorsUpdated: MonitorResponse
+  }
+
 
 `);
