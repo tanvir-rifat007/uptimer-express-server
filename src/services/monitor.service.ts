@@ -8,6 +8,8 @@ import { toLower } from "lodash";
 import { IHeartbeat } from "@src/interfaces/heartbeat.interface";
 import { uptimePercentage } from "@src/utils/utils";
 import { HttpModel } from "@src/models/http.model";
+import { MongoModel } from "@src/models/mongodb.model";
+import { mongoStatusMonitor } from "./mongo.service";
 
 const HTTP_TYPE = "http";
 const TCP_TYPE = "tcp";
@@ -243,7 +245,7 @@ export const startCreatedMonitors = (
     console.log("TCP", monitor.name, name);
   }
   if (type === MONGO_TYPE) {
-    console.log("mongodb", monitor.name, name);
+    mongoStatusMonitor(monitor, `${toLower(name)}`);
   }
   if (type === REDIS_TYPE) {
     console.log("redis", monitor.name, name);
@@ -283,6 +285,9 @@ const deleteMonitorTypeHeartbeats = async (monitorId: number, type: string) => {
     model = HttpModel;
   }
 
+  if (type === MONGO_TYPE) {
+    model = MongoModel;
+  }
   if (model) {
     await model.destroy({
       where: { monitorId },
