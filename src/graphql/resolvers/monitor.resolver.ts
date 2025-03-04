@@ -26,10 +26,11 @@ import {
 import { some, toLower } from "lodash";
 import { PubSub } from "graphql-subscriptions";
 import { IHeartbeat } from "@src/interfaces/heartbeat.interface";
+import { getCertificateInfo } from "@src/monitors/monitors";
 
 export const pubSub: PubSub = new PubSub();
 
-export const monitorResolver = {
+export const uptimeMonitorResolver = {
   Query: {
     async getSingleMonitor(
       _parent: undefined,
@@ -38,6 +39,8 @@ export const monitorResolver = {
     ) {
       const { req } = contextValue;
       authenticateGraphQLRoute(req);
+      const result = await getCertificateInfo("https://facebook.com");
+      console.log(result);
       const monitor: IMonitorDocument = await getMonitorById(+monitorId);
       return {
         monitors: [monitor],

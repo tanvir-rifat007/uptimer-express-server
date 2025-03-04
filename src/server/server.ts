@@ -23,7 +23,11 @@ import { GraphQLSchema } from "graphql";
 import { BaseContext } from "@apollo/server";
 import { resolvers } from "@src/graphql/resolvers";
 import { AppContext } from "@src/interfaces/monitor.interface";
-import { enableAutoRefreshJob, startMonitors } from "@src/utils/utils";
+import {
+  enableAutoRefreshJob,
+  startMonitors,
+  startSSLMonitors,
+} from "@src/utils/utils";
 
 import { Server, WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
@@ -166,6 +170,7 @@ export default class MonitorServer {
       this.httpServer.listen(PORT, () => {
         logger.info(`Server is running on port ${PORT}`);
         startMonitors();
+        startSSLMonitors();
       });
     } catch (err) {
       logger.error(err);

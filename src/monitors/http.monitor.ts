@@ -1,22 +1,25 @@
 import { IHeartbeat } from "@src/interfaces/heartbeat.interface";
 import { IMonitorDocument } from "@src/interfaces/monitor.interface";
+import { IEmailLocals } from "@src/interfaces/notification.interface";
 import logger from "@src/server/logger";
 import { createHttpHeartBeat } from "@src/services/http.service";
 import {
   getMonitorById,
   updateMonitorStatus,
 } from "@src/services/monitor.service";
-import { encodeBase64 } from "@src/utils/utils";
+import { emailSender, encodeBase64, locals } from "@src/utils/utils";
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import dayjs from "dayjs";
 
 class HttpMonitor {
   errorCount: number;
   noSuccessAlert: boolean;
+  emailsLocals: IEmailLocals;
 
   constructor() {
     this.errorCount = 0;
     this.noSuccessAlert = true;
+    this.emailsLocals = locals();
   }
 
   async start(data: IMonitorDocument): Promise<void> {
@@ -37,6 +40,7 @@ class HttpMonitor {
     const startTime: number = Date.now();
     try {
       const monitorData: IMonitorDocument = await getMonitorById(monitorId!);
+      this.emailsLocals.appName = monitorData.name;
       let basicAuthHeader = {};
       if (httpAuthMethod === "basic") {
         basicAuthHeader = {
@@ -81,7 +85,9 @@ class HttpMonitor {
         monitorId: monitorId!,
         status: 0,
         code: response.status ?? 0,
-        message: `${response.status} - ${response.statusText}`,
+        message:
+          `${response.status} - ${response.statusText}` ||
+          "Http monitor check successful.",
         timestamp: dayjs.utc().valueOf(),
         reqHeaders: JSON.stringify(response.headers) ?? "",
         resHeaders: JSON.stringify(response.request.res.rawHeaders) ?? "",
@@ -95,10 +101,6 @@ class HttpMonitor {
         monitorData.contentType!.length > 0
           ? JSON.parse(JSON.stringify(monitorData.contentType!))
           : [];
-      console.log("statusList", statusList);
-      console.log("responseDurationTime", responseDurationTime);
-      console.log("responseTime", responseTime);
-      console.log("contentTypeList", contentTypeList);
       if (
         !statusList.includes(response.status) ||
         responseDurationTime < responseTime ||
@@ -137,6 +139,11 @@ class HttpMonitor {
     ) {
       this.errorCount = 0;
       this.noSuccessAlert = false;
+      emailSender(
+        monitorData.notifications!.emails,
+        "errorStatus",
+        this.emailsLocals
+      );
     }
     logger.info(
       `HTTP heartbeat failed assertions: Monitor ID ${monitorData.id}`
@@ -154,6 +161,11 @@ class HttpMonitor {
     if (!this.noSuccessAlert) {
       this.errorCount = 0;
       this.noSuccessAlert = true;
+      emailSender(
+        monitorData.notifications!.emails,
+        "successStatus",
+        this.emailsLocals
+      );
     }
     logger.info(`HTTP heartbeat success: Monitor ID ${monitorData.id}`);
   }
@@ -194,6 +206,11 @@ class HttpMonitor {
     ) {
       this.errorCount = 0;
       this.noSuccessAlert = false;
+      emailSender(
+        monitorData.notifications!.emails,
+        "errorStatus",
+        this.emailsLocals
+      );
     }
   }
 }

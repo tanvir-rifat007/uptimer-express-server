@@ -10,6 +10,10 @@ import { uptimePercentage } from "@src/utils/utils";
 import { HttpModel } from "@src/models/http.model";
 import { MongoModel } from "@src/models/mongodb.model";
 import { mongoStatusMonitor } from "./mongo.service";
+import { RedisModel } from "@src/models/redis.model";
+import { redisStatusMonitor } from "./redis.service";
+import { TcpModel } from "@src/models/tcp.model";
+import { tcpStatusMonitor } from "./tcp.service";
 
 const HTTP_TYPE = "http";
 const TCP_TYPE = "tcp";
@@ -242,13 +246,13 @@ export const startCreatedMonitors = (
     httpStatusMonitor(monitor, `${toLower(name)}`);
   }
   if (type === TCP_TYPE) {
-    console.log("TCP", monitor.name, name);
+    tcpStatusMonitor(monitor, `${toLower(name)}`);
   }
   if (type === MONGO_TYPE) {
     mongoStatusMonitor(monitor, `${toLower(name)}`);
   }
   if (type === REDIS_TYPE) {
-    console.log("redis", monitor.name, name);
+    redisStatusMonitor(monitor, `${toLower(name)}`);
   }
 };
 
@@ -288,6 +292,15 @@ const deleteMonitorTypeHeartbeats = async (monitorId: number, type: string) => {
   if (type === MONGO_TYPE) {
     model = MongoModel;
   }
+
+  if (type === REDIS_TYPE) {
+    model = RedisModel;
+  }
+
+  if (type === TCP_TYPE) {
+    model = TcpModel;
+  }
+
   if (model) {
     await model.destroy({
       where: { monitorId },

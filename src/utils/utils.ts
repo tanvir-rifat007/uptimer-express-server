@@ -12,8 +12,16 @@ import { GraphQLError } from "graphql";
 import { verify } from "jsonwebtoken";
 import { toLower } from "lodash";
 import { startSingleJob } from "./jobs";
-import { JWT_TOKEN } from "@src/server/config";
+import { CLIENT_URL, JWT_TOKEN } from "@src/server/config";
 import { IHeartbeat } from "@src/interfaces/heartbeat.interface";
+import { sendEmail } from "./email";
+import { IEmailLocals } from "@src/interfaces/notification.interface";
+import {
+  getAllUsersActiveSSLMonitors,
+  getSSLMonitorById,
+  sslStatusMonitor,
+} from "@src/services/ssl.service";
+import { ISSLMonitorDocument } from "@src/interfaces/ssl.interface";
 
 // get a user's current time zone:
 export const appTimeZone: string =
@@ -85,10 +93,37 @@ export const startMonitors = async (): Promise<void> => {
   }
 };
 
+export const startSSLMonitors = async (): Promise<void> => {
+  const list: ISSLMonitorDocument[] = await getAllUsersActiveSSLMonitors();
+
+  for (const monitor of list) {
+    sslStatusMonitor(monitor, toLower(monitor.name));
+    await sleep(getRandomInt(300, 1000));
+  }
+};
+
 export const resumeMonitors = async (monitorId: number): Promise<void> => {
   const monitor: IMonitorDocument = await getMonitorById(monitorId);
   startCreatedMonitors(monitor, toLower(monitor.name), monitor.type);
   await sleep(getRandomInt(300, 1000));
+};
+
+export const resumeSSLMonitors = async (monitorId: number): Promise<void> => {
+  const monitor: ISSLMonitorDocument = await getSSLMonitorById(monitorId);
+  sslStatusMonitor(monitor, toLower(monitor.name));
+  await sleep(getRandomInt(300, 1000));
+};
+
+export const getDaysBetween = (start: Date, end: Date): number => {
+  return Math.round(Math.abs(+start - +end) / (1000 * 60 * 60 * 24));
+};
+
+export const getDaysRemaining = (start: Date, end: Date): number => {
+  const daysRemaining = getDaysBetween(start, end);
+  if (new Date(end).getTime() < new Date().getTime()) {
+    return -daysRemaining;
+  }
+  return daysRemaining;
 };
 
 export const enableAutoRefreshJob = (cookies: string): void => {
@@ -127,4 +162,23 @@ const getCookies = (cookie: string): Record<string, string> => {
     cookies[parts![1].trim()] = (parts![2] || "").trim();
   });
   return cookies;
+};
+
+export const emailSender = async (
+  notificationEmails: string,
+  template: string,
+  locals: IEmailLocals
+): Promise<void> => {
+  const emails = JSON.parse(notificationEmails);
+  for (const email of emails) {
+    await sendEmail(template, email, locals);
+  }
+};
+
+export const locals = (): IEmailLocals => {
+  return {
+    appLink: `${CLIENT_URL}`,
+    appIcon: "https://ibb.com/jD45fqX",
+    appName: "",
+  };
 };
